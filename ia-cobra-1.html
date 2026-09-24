@@ -1,0 +1,2280 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- INICIO-ARTEFATO -->
+<title>Cobra que Aprende</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=Rubik:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* =====================================================================
+   COBRA QUE APRENDE — jogo da cobrinha com uma IA de Q-learning
+   Projeto escolar. Tudo em um arquivo só: sem bibliotecas, sem servidor.
+   ===================================================================== */
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+:root {
+  color-scheme: dark;
+  --tinta:        #05100f;
+  --tinta-2:      #081b1a;
+  --placa:        #0c2321;
+  --placa-alta:   #113331;
+  --borda:        rgba(126, 219, 188, .16);
+  --borda-forte:  rgba(126, 219, 188, .32);
+  --fosforo:      #5ef2a4;
+  --fosforo-claro:#b6ffd9;
+  --violeta:      #b388ff;
+  --violeta-claro:#ddccff;
+  --ambar:        #ffc247;
+  --coral:        #ff7a63;
+  --papel:        #e4f2ec;
+  --nevoa:        #8ba8a2;
+  --nevoa-fraca:  #5f7b76;
+  --sombra:       0 18px 46px rgba(0, 0, 0, .55);
+  --raio:         14px;
+}
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background:
+    radial-gradient(900px 600px at 8% -10%, #10312e 0%, transparent 58%),
+    radial-gradient(760px 560px at 105% 8%, #221a46 0%, transparent 55%),
+    linear-gradient(170deg, #04100f, #061a1a 55%, #040e10);
+  background-attachment: fixed;
+  color: var(--papel);
+  font-family: 'Rubik', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-tap-highlight-color: transparent;
+}
+
+img { max-width: 100%; }
+
+.folha {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding-block: clamp(18px, 4vw, 38px);
+  padding-inline: 18px;
+}
+
+/* ---------- tipografia ---------- */
+
+.olho {
+  font-family: 'Silkscreen', 'Courier New', monospace;
+  font-size: 11px;
+  letter-spacing: 2.4px;
+  color: var(--fosforo);
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+
+h1 {
+  font-family: 'Silkscreen', 'Courier New', monospace;
+  font-weight: 400;
+  font-size: clamp(30px, 7vw, 52px);
+  line-height: 1.05;
+  letter-spacing: -.5px;
+  margin: 0;
+  text-wrap: balance;
+  color: var(--fosforo-claro);
+  text-shadow: 0 0 26px rgba(94, 242, 164, .28);
+}
+
+h1 em { font-style: normal; color: var(--violeta); text-shadow: 0 0 26px rgba(179, 136, 255, .3); }
+
+.linha-fina {
+  max-width: 62ch;
+  margin: 14px 0 0;
+  color: var(--nevoa);
+  font-size: 15px;
+}
+
+.linha-fina b { color: var(--papel); font-weight: 500; }
+
+h2 {
+  font-family: 'Silkscreen', 'Courier New', monospace;
+  font-weight: 400;
+  font-size: 19px;
+  letter-spacing: .5px;
+  margin: 0 0 6px;
+  color: var(--papel);
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--papel);
+}
+
+.rotulo {
+  font-family: 'Silkscreen', 'Courier New', monospace;
+  font-size: 9.5px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: var(--nevoa-fraca);
+}
+
+.num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+/* ---------- cabeçalho e modos ---------- */
+
+.topo { margin-bottom: 22px; }
+
+.modos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.modo {
+  flex: 1 1 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px solid var(--borda);
+  background: rgba(10, 32, 30, .7);
+  color: var(--nevoa);
+  font-family: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s, transform .1s;
+}
+
+.modo:hover { color: var(--papel); border-color: var(--borda-forte); }
+.modo:active { transform: translateY(1px); }
+
+.modo[aria-pressed="true"] {
+  color: var(--tinta);
+  background: linear-gradient(140deg, var(--fosforo-claro), var(--fosforo));
+  border-color: transparent;
+  font-weight: 700;
+  box-shadow: 0 8px 22px rgba(94, 242, 164, .22);
+}
+
+.modo span { font-size: 15px; line-height: 1; }
+
+/* ---------- bancada ---------- */
+
+.bancada {
+  display: grid;
+  grid-template-columns: minmax(0, 1.02fr) minmax(0, .98fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.cartao {
+  background: linear-gradient(170deg, rgba(14, 40, 38, .9), rgba(8, 25, 25, .9));
+  border: 1px solid var(--borda);
+  border-radius: var(--raio);
+  padding: 16px;
+  box-shadow: var(--sombra);
+}
+
+.coluna { display: grid; gap: 16px; }
+
+/* ---------- placar ---------- */
+
+.placar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.placar > div {
+  background: rgba(4, 16, 15, .6);
+  border: 1px solid var(--borda);
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.placar strong {
+  display: block;
+  margin-top: 2px;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--papel);
+}
+
+.placar .valor-ia { color: var(--violeta); }
+.placar .valor-ouro { color: var(--ambar); }
+
+/* ---------- tabuleiros ---------- */
+
+.tabuleiros { display: grid; grid-template-columns: 1fr; gap: 10px; }
+.tabuleiros.duelo { grid-template-columns: 1fr 1fr; }
+
+.tabuleiro { position: relative; }
+
+.tabuleiro figcaption {
+  font-family: 'Silkscreen', 'Courier New', monospace;
+  font-size: 9.5px;
+  letter-spacing: 1.6px;
+  text-align: center;
+  padding: 6px 0 0;
+  color: var(--nevoa-fraca);
+}
+
+.tabuleiro.eu figcaption { color: var(--fosforo); }
+.tabuleiro.ela figcaption { color: var(--violeta); }
+
+.moldura {
+  padding: 5px;
+  border-radius: 13px;
+  background: linear-gradient(150deg, rgba(94, 242, 164, .3), rgba(179, 136, 255, .22), rgba(255, 255, 255, .06));
+}
+
+.tabuleiro.ela .moldura { background: linear-gradient(150deg, rgba(179, 136, 255, .35), rgba(94, 242, 164, .16), rgba(255, 255, 255, .06)); }
+
+canvas.arena {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 9px;
+  background: #061513;
+  touch-action: none;
+}
+
+/* ---------- barra de estado e controles ---------- */
+
+.aviso {
+  margin-top: 12px;
+  min-height: 21px;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--fosforo-claro);
+}
+.aviso.ouro { color: var(--ambar); }
+.aviso.erro { color: var(--coral); }
+.aviso.roxo { color: var(--violeta-claro); }
+
+.acoes { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+
+.btn {
+  flex: 1 1 auto;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--borda);
+  background: rgba(10, 32, 30, .8);
+  color: var(--papel);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color .15s, background .15s, transform .1s;
+}
+
+.btn:hover { border-color: var(--borda-forte); background: rgba(16, 46, 43, .9); }
+.btn:active { transform: translateY(1px); }
+.btn.perigo:hover { border-color: rgba(255, 122, 99, .5); color: var(--coral); }
+
+.dpad {
+  display: none;
+  grid-template-columns: repeat(3, 62px);
+  grid-template-rows: 48px 48px;
+  gap: 7px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+.dpad button {
+  border-radius: 11px;
+  border: 1px solid var(--borda);
+  background: rgba(10, 32, 30, .85);
+  color: var(--fosforo-claro);
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.dpad button:active { background: rgba(94, 242, 164, .2); }
+
+@media (hover: none), (max-width: 860px) {
+  .dpad { display: grid; }
+}
+
+.dica {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--nevoa-fraca);
+  line-height: 1.7;
+}
+.dica kbd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  background: rgba(94, 242, 164, .1);
+  border: 1px solid var(--borda);
+  border-radius: 5px;
+  padding: 1px 5px;
+  color: var(--fosforo-claro);
+}
+
+/* ---------- painel do cérebro ---------- */
+
+.cabecalho-cartao {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.subtitulo-cartao { font-size: 12.5px; color: var(--nevoa); margin: 0; }
+
+.notas { display: grid; gap: 7px; }
+
+.nota {
+  display: grid;
+  grid-template-columns: 96px 1fr 58px;
+  align-items: center;
+  gap: 9px;
+}
+
+.nota-rot { font-size: 12.5px; color: var(--nevoa); }
+
+.trilho {
+  height: 16px;
+  border-radius: 5px;
+  background: rgba(4, 16, 15, .8);
+  border: 1px solid var(--borda);
+  overflow: hidden;
+}
+
+.trilho i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 4px 0 0 4px;
+  background: rgba(139, 168, 162, .35);
+  transition: width .12s linear, background .2s;
+}
+
+.nota.melhor .nota-rot { color: var(--papel); font-weight: 500; }
+.nota.melhor .trilho i { background: linear-gradient(90deg, var(--fosforo), var(--fosforo-claro)); }
+.nota.melhor .nota-val { color: var(--fosforo-claro); }
+
+.nota-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  text-align: right;
+  color: var(--nevoa);
+}
+
+.decisao {
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: rgba(179, 136, 255, .1);
+  border: 1px solid rgba(179, 136, 255, .28);
+  font-size: 13px;
+  color: var(--violeta-claro);
+}
+
+.decisao b { color: #fff; font-weight: 700; }
+
+/* ---------- bits do estado ---------- */
+
+.estado-grupos { display: grid; gap: 9px; margin-top: 14px; }
+
+.grupo-bits { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.grupo-bits .rotulo { flex: 0 0 76px; }
+
+.bit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--borda);
+  background: rgba(4, 16, 15, .6);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--nevoa-fraca);
+  transition: background .15s, color .15s, border-color .15s;
+}
+
+.bit.aceso { color: var(--tinta); background: var(--fosforo); border-color: var(--fosforo); font-weight: 700; }
+.bit.aceso.perigo { background: var(--coral); border-color: var(--coral); color: #2a0a04; }
+.bit.aceso.rumo { background: var(--violeta); border-color: var(--violeta); color: #16072e; }
+
+/* ---------- estatísticas ---------- */
+
+.grade-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.stat {
+  background: rgba(4, 16, 15, .55);
+  border: 1px solid var(--borda);
+  border-radius: 9px;
+  padding: 8px 9px;
+}
+
+.stat strong {
+  display: block;
+  margin-top: 1px;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--papel);
+}
+
+canvas.grafico {
+  display: block;
+  width: 100%;
+  height: 200px;
+  margin-top: 4px;
+  border-radius: 9px;
+  background: rgba(4, 16, 15, .55);
+  border: 1px solid var(--borda);
+}
+
+.legenda-grafico {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--nevoa-fraca);
+}
+
+.legenda-grafico span { display: inline-flex; align-items: center; gap: 6px; }
+.marca { width: 11px; height: 3px; border-radius: 2px; display: inline-block; }
+.marca.pontos { background: rgba(94, 242, 164, .55); height: 7px; width: 7px; border-radius: 2px; }
+.marca.media { background: var(--violeta); }
+
+/* ---------- ajustes ---------- */
+
+.ajuste {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px dashed rgba(126, 219, 188, .12);
+}
+
+.ajuste:last-of-type { border-bottom: 0; }
+.ajuste p { margin: 0; font-size: 13px; }
+.ajuste small { display: block; color: var(--nevoa-fraca); font-size: 11.5px; line-height: 1.5; }
+
+.interruptor {
+  min-width: 72px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--borda);
+  background: rgba(4, 16, 15, .6);
+  color: var(--nevoa);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.interruptor[aria-pressed="true"] { color: var(--fosforo-claro); border-color: var(--borda-forte); background: rgba(94, 242, 164, .14); }
+
+input[type="range"] {
+  width: 132px;
+  accent-color: #5ef2a4;
+  cursor: pointer;
+}
+
+:focus-visible { outline: 2px solid var(--fosforo); outline-offset: 2px; border-radius: 6px; }
+
+details.cerebro { margin-top: 12px; }
+details.cerebro summary { cursor: pointer; font-size: 12.5px; color: var(--nevoa); }
+details.cerebro summary:hover { color: var(--papel); }
+
+textarea {
+  width: 100%;
+  height: 84px;
+  margin-top: 9px;
+  padding: 9px;
+  border-radius: 9px;
+  border: 1px solid var(--borda);
+  background: rgba(4, 16, 15, .75);
+  color: var(--nevoa);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  resize: vertical;
+}
+
+/* ---------- explicação ---------- */
+
+.explicacao { margin-top: 30px; }
+
+.passos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(212px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.passo {
+  background: rgba(8, 25, 25, .7);
+  border: 1px solid var(--borda);
+  border-left: 3px solid var(--fosforo);
+  border-radius: 0 11px 11px 0;
+  padding: 13px 15px;
+}
+
+.passo:nth-child(2) { border-left-color: var(--violeta); }
+.passo:nth-child(3) { border-left-color: var(--ambar); }
+.passo:nth-child(4) { border-left-color: var(--coral); }
+
+.passo .ordem {
+  font-family: 'Silkscreen', 'Courier New', monospace;
+  font-size: 10px;
+  letter-spacing: 1.6px;
+  color: var(--nevoa-fraca);
+  display: block;
+  margin-bottom: 5px;
+}
+
+.passo p { margin: 0; font-size: 13.5px; color: var(--nevoa); }
+.passo p b { color: var(--papel); font-weight: 500; }
+
+.formula {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 11px;
+  background: rgba(4, 16, 15, .7);
+  border: 1px solid var(--borda);
+  overflow-x: auto;
+}
+
+.formula code {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--fosforo-claro);
+  white-space: nowrap;
+}
+
+.formula .legenda {
+  margin: 12px 0 0;
+  font-size: 12.5px;
+  color: var(--nevoa);
+  white-space: normal;
+}
+
+.formula .legenda b { color: var(--ambar); font-family: 'JetBrains Mono', monospace; }
+
+.duas-colunas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.nota-lateral p { margin: 6px 0 0; font-size: 13.5px; color: var(--nevoa); }
+.nota-lateral p b { color: var(--papel); font-weight: 500; }
+
+.ficha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.ficha li {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: 1px solid var(--borda);
+  background: rgba(4, 16, 15, .5);
+  color: var(--nevoa);
+}
+
+.ficha li b { color: var(--fosforo-claro); font-weight: 700; }
+
+/* ---------- roteiro ---------- */
+
+.roteiro { margin-top: 26px; }
+
+.roteiro ol { margin: 14px 0 0; padding: 0 0 0 4px; list-style: none; counter-reset: passo; }
+
+.roteiro li {
+  counter-increment: passo;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed rgba(126, 219, 188, .12);
+  font-size: 13.5px;
+  color: var(--nevoa);
+}
+
+.roteiro li:last-child { border-bottom: 0; }
+
+.roteiro li::before {
+  content: counter(passo);
+  font-family: 'Silkscreen', 'Courier New', monospace;
+  font-size: 13px;
+  color: var(--fosforo);
+  text-align: center;
+  padding-top: 1px;
+}
+
+.roteiro li b { color: var(--papel); font-weight: 500; }
+.roteiro li .tempo { color: var(--nevoa-fraca); font-family: 'JetBrains Mono', monospace; font-size: 11.5px; }
+
+footer {
+  margin-top: 30px;
+  padding-top: 18px;
+  border-top: 1px solid var(--borda);
+  font-size: 12px;
+  color: var(--nevoa-fraca);
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ---------- responsivo ---------- */
+
+@media (max-width: 900px) {
+  .bancada { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+  body { font-size: 14.5px; }
+  .folha { padding-inline: 16px; }
+  .placar strong { font-size: 18px; }
+  .nota { grid-template-columns: 78px 1fr 50px; }
+  .modo { flex: 1 1 calc(50% - 8px); font-size: 12.5px; padding: 10px 6px; }
+  .grupo-bits .rotulo { flex: 1 0 100%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="folha">
+
+  <header class="topo">
+    <p class="olho">Projeto escolar · Aprendizado por reforço</p>
+    <h1>Cobra que <em>aprende</em></h1>
+    <p class="linha-fina">
+      Uma cobrinha que começa sem saber absolutamente nada: bate na parede, anda em círculos, morre.
+      Ela joga milhares de partidas sozinha e vai ficando boa — e quando <b>você</b> joga,
+      cada movimento seu também vira uma aula para ela.
+    </p>
+
+    <nav class="modos" id="modos" aria-label="Modos do jogo">
+      <button class="modo" data-modo="assistir" aria-pressed="true"><span>👁️</span>Ver a IA jogar</button>
+      <button class="modo" data-modo="treino" aria-pressed="false"><span>🤖</span>Treinar a IA</button>
+      <button class="modo" data-modo="jogador" aria-pressed="false"><span>🎮</span>Você joga</button>
+      <button class="modo" data-modo="duelo" aria-pressed="false"><span>⚔️</span>Duelo</button>
+    </nav>
+  </header>
+
+  <main class="bancada">
+
+    <!-- ======================= COLUNA DO JOGO ======================= -->
+    <section class="cartao" aria-label="Tabuleiro">
+
+      <div class="placar">
+        <div><span class="rotulo" id="rotuloUm">Pontos</span><strong id="hudPontos">0</strong></div>
+        <div><span class="rotulo" id="rotuloDois">Seu recorde</span><strong id="hudRecorde">0</strong></div>
+        <div><span class="rotulo">Nível</span><strong id="hudNivel" class="valor-ouro">1</strong></div>
+        <div><span class="rotulo">Partidas IA</span><strong id="hudPartidas" class="valor-ia">0</strong></div>
+      </div>
+
+      <div class="tabuleiros" id="tabuleiros">
+        <figure class="tabuleiro eu" id="quadroA" style="margin:0">
+          <div class="moldura"><canvas class="arena" id="telaA" width="400" height="400"></canvas></div>
+          <figcaption id="tituloA">A IA JOGANDO</figcaption>
+        </figure>
+        <figure class="tabuleiro ela" id="quadroB" hidden style="margin:0">
+          <div class="moldura"><canvas class="arena" id="telaB" width="400" height="400"></canvas></div>
+          <figcaption id="tituloB">A IA · <span id="hudPontosIA" class="num">0</span> PTS</figcaption>
+        </figure>
+      </div>
+
+      <p class="aviso" id="aviso">A IA está jogando com o cérebro que já treinou.</p>
+
+      <div class="acoes">
+        <button class="btn" id="btnPausa">⏸ Pausar</button>
+        <button class="btn" id="btnReiniciar">↻ Reiniciar partida</button>
+      </div>
+
+      <div class="dpad" id="dpad" aria-label="Controles">
+        <div></div>
+        <button data-dir="3" aria-label="Cima">▲</button>
+        <div></div>
+        <button data-dir="2" aria-label="Esquerda">◀</button>
+        <button data-dir="1" aria-label="Baixo">▼</button>
+        <button data-dir="0" aria-label="Direita">▶</button>
+      </div>
+
+      <p class="dica">
+        Mover: <kbd>W A S D</kbd> ou <kbd>← ↑ → ↓</kbd> · Pausar: <kbd>P</kbd> · Recomeçar: <kbd>espaço</kbd>
+        · No celular, deslize o dedo sobre o tabuleiro.
+      </p>
+    </section>
+
+    <!-- ======================= COLUNA DA IA ======================= -->
+    <div class="coluna">
+
+      <section class="cartao" aria-label="Cérebro da IA">
+        <div class="cabecalho-cartao">
+          <h2>🧠 O cérebro agora</h2>
+          <span class="rotulo">estado atual</span>
+        </div>
+        <p class="subtitulo-cartao">
+          Para a situação em que a cobra está neste instante, estas são as três notas que ela guardou.
+          Ela escolhe a maior.
+        </p>
+
+        <div class="notas" style="margin-top:12px">
+          <div class="nota" id="nota0">
+            <span class="nota-rot">↑ Seguir reto</span>
+            <div class="trilho"><i id="barra0"></i></div>
+            <span class="nota-val" id="val0">0,00</span>
+          </div>
+          <div class="nota" id="nota1">
+            <span class="nota-rot">↱ Virar à direita</span>
+            <div class="trilho"><i id="barra1"></i></div>
+            <span class="nota-val" id="val1">0,00</span>
+          </div>
+          <div class="nota" id="nota2">
+            <span class="nota-rot">↰ Virar à esquerda</span>
+            <div class="trilho"><i id="barra2"></i></div>
+            <span class="nota-val" id="val2">0,00</span>
+          </div>
+        </div>
+
+        <p class="decisao" id="decisao">A IA decidiria: <b>seguir reto</b>.</p>
+
+        <div class="estado-grupos">
+          <div class="grupo-bits">
+            <span class="rotulo">Perigo em</span>
+            <span class="bit" id="bitP0">frente</span>
+            <span class="bit" id="bitP1">direita</span>
+            <span class="bit" id="bitP2">esquerda</span>
+          </div>
+          <div class="grupo-bits">
+            <span class="rotulo">Indo para</span>
+            <span class="bit" id="bitD0">→</span>
+            <span class="bit" id="bitD1">↓</span>
+            <span class="bit" id="bitD2">←</span>
+            <span class="bit" id="bitD3">↑</span>
+          </div>
+          <div class="grupo-bits">
+            <span class="rotulo">Comida está</span>
+            <span class="bit" id="bitC0">→</span>
+            <span class="bit" id="bitC1">←</span>
+            <span class="bit" id="bitC2">↓</span>
+            <span class="bit" id="bitC3">↑</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="cartao" aria-label="Curva de aprendizado">
+        <div class="cabecalho-cartao">
+          <h2>📈 Curva de aprendizado</h2>
+          <span class="rotulo" id="rotuloEscala">1 ponto = 1 partida</span>
+        </div>
+        <canvas class="grafico" id="grafico"></canvas>
+        <div class="legenda-grafico">
+          <span><i class="marca pontos"></i> cada partida da IA</span>
+          <span><i class="marca media"></i> média móvel</span>
+        </div>
+
+        <div class="grade-stats">
+          <div class="stat"><span class="rotulo">Média (50)</span><strong id="statMedia">0</strong></div>
+          <div class="stat"><span class="rotulo">Melhor da IA</span><strong id="statMelhor">0</strong></div>
+          <div class="stat"><span class="rotulo">Exploração</span><strong id="statExploracao">2%</strong></div>
+          <div class="stat"><span class="rotulo">Situações</span><strong id="statEstados">0</strong></div>
+          <div class="stat"><span class="rotulo">Lições suas</span><strong id="statLicoes">0</strong></div>
+          <div class="stat"><span class="rotulo">Concorda com você</span><strong id="statAcordo">—</strong></div>
+        </div>
+      </section>
+
+      <section class="cartao" aria-label="Ajustes">
+        <div class="cabecalho-cartao">
+          <h2>⚙️ Ajustes</h2>
+          <span class="rotulo">tudo ao vivo</span>
+        </div>
+
+        <div class="ajuste">
+          <p>Paredes matam<small>Desligado, a cobra atravessa e sai do outro lado.</small></p>
+          <button class="interruptor" id="btnMuros" aria-pressed="true">SIM</button>
+        </div>
+
+        <div class="ajuste">
+          <p>Som<small>Bips curtos de comer, subir de nível e morrer.</small></p>
+          <button class="interruptor" id="btnSom" aria-pressed="true">LIGADO</button>
+        </div>
+
+        <div class="ajuste">
+          <p>Velocidade do jogo<small>Só muda o que aparece na tela, não o treino.</small></p>
+          <input type="range" id="ctlVelocidade" min="55" max="220" step="5" value="120" aria-label="Velocidade do jogo">
+        </div>
+
+        <div class="ajuste">
+          <p>Treino turbo<small>Usa mais tempo do processador por segundo.</small></p>
+          <button class="interruptor" id="btnTurbo" aria-pressed="false">NÃO</button>
+        </div>
+
+        <div class="ajuste">
+          <p>α · taxa de aprendizado<small>O tanto que ela muda de ideia a cada jogada.</small></p>
+          <input type="range" id="ctlAlfa" min="5" max="90" step="5" value="25" aria-label="Taxa de aprendizado">
+        </div>
+
+        <div class="ajuste">
+          <p>γ · importância do futuro<small>0 = imediatista. Perto de 1 = pensa longe.</small></p>
+          <input type="range" id="ctlGama" min="50" max="99" step="1" value="90" aria-label="Importância do futuro">
+        </div>
+
+        <div class="acoes">
+          <button class="btn perigo" id="btnZerar">🧹 Recomeçar o cérebro do zero</button>
+        </div>
+
+        <details class="cerebro">
+          <summary>Levar o cérebro para outro computador</summary>
+          <textarea id="caixaCerebro" spellcheck="false" aria-label="Cérebro em texto"></textarea>
+          <div class="acoes">
+            <button class="btn" id="btnCopiar">Copiar cérebro</button>
+            <button class="btn" id="btnCarregar">Carregar do texto</button>
+          </div>
+        </details>
+      </section>
+    </div>
+  </main>
+
+  <!-- ======================= EXPLICAÇÃO ======================= -->
+  <section class="cartao explicacao">
+    <p class="olho">Como funciona</p>
+    <h2>Q-learning: aprender levando nota</h2>
+    <p class="linha-fina">
+      Ninguém ensinou a cobra a jogar. Ela só recebe <b>prêmios</b> e <b>castigos</b> e vai anotando,
+      numa tabela, o quanto cada decisão costuma valer a pena. Isso se repete milhares de vezes.
+    </p>
+
+    <div class="passos">
+      <article class="passo">
+        <span class="ordem">Passo 1 · olhar</span>
+        <h3>Ela vê pouca coisa</h3>
+        <p>O tabuleiro inteiro seria grande demais para decorar. Então a cobra resume tudo em
+          <b>11 respostas de sim ou não</b>: tem perigo na minha frente, na minha direita e na minha esquerda?
+          para que lado estou indo? e para que lado está a comida? Esse resumo é o <b>estado</b>.</p>
+      </article>
+      <article class="passo">
+        <span class="ordem">Passo 2 · decidir</span>
+        <h3>Três caminhos, três notas</h3>
+        <p>Para cada estado ela guarda uma nota para <b>seguir reto</b>, uma para <b>virar à direita</b>
+          e uma para <b>virar à esquerda</b>. Normalmente escolhe a maior — mas de vez em quando
+          arrisca de propósito, senão nunca descobriria um caminho melhor do que o que já conhece.</p>
+      </article>
+      <article class="passo">
+        <span class="ordem">Passo 3 · receber</span>
+        <h3>Prêmio e castigo</h3>
+        <p>Comeu: <b>+10</b>. Morreu: <b>−10</b>. Chegou mais perto da comida: <b>+1</b>.
+          Se afastou: <b>−1</b>. Ficou rodando à toa sem comer: <b>−5</b> e acabou a partida.
+          Só isso. Nenhuma dica de estratégia.</p>
+      </article>
+      <article class="passo">
+        <span class="ordem">Passo 4 · corrigir</span>
+        <h3>Ajustar a nota</h3>
+        <p>Depois de cada passo ela corrige a nota daquela decisão, misturando o que <b>acabou de acontecer</b>
+          com o que ela <b>espera ganhar dali em diante</b>. É uma conta só, repetida centenas de milhares de vezes.</p>
+      </article>
+    </div>
+
+    <div class="formula">
+      <code>Q(estado, ação) ← Q(estado, ação) + α · [ recompensa + γ · melhor Q do próximo estado − Q(estado, ação) ]</code>
+      <p class="legenda">
+        <b>Q</b> é a nota guardada na tabela · <b>α</b> (alfa) é o quanto ela muda de ideia a cada jogada ·
+        <b>γ</b> (gama) é o quanto ela liga para o que vem depois · o colchete é a <b>surpresa</b>:
+        a diferença entre o que ela esperava e o que realmente aconteceu. Aprender é só diminuir surpresa.
+      </p>
+    </div>
+
+    <div class="duas-colunas">
+      <div class="nota-lateral">
+        <h3>Por que "virar à direita" e não "ir para cima"?</h3>
+        <p>Porque as ações são pensadas <b>a partir da cabeça da cobra</b>, como um motorista que só pode
+          seguir reto, virar à esquerda ou virar à direita. Assim, uma lição aprendida enquanto ela ia
+          para cima <b>também vale</b> quando ela estiver indo para baixo — e o aprendizado fica várias
+          vezes mais rápido do que decorar cada direção separadamente.</p>
+      </div>
+      <div class="nota-lateral">
+        <h3>Quando você joga, ela assiste</h3>
+        <p>Cada movimento seu entra <b>na mesma fórmula</b>, como se fosse uma jogada dela: o estado antes,
+          a sua decisão, o prêmio ou castigo que veio depois. É por isso que o contador de
+          <b>lições suas</b> sobe enquanto você joga — e é assim que se ensina um robô de verdade:
+          mostrando, não explicando.</p>
+      </div>
+      <div class="nota-lateral">
+        <h3>O limite dela (e como seria o próximo passo)</h3>
+        <p>A cobra só enxerga as <b>casas coladas na cabeça</b>. Ela não percebe que está montando um beco
+          sem saída com o próprio corpo, e é sempre assim que ela acaba morrendo nas partidas longas.
+          Para enxergar mais longe não daria para usar uma tabela: seria preciso uma <b>rede neural</b>
+          no lugar dela — é o que se chama de <b>Deep Q-Network</b>.</p>
+      </div>
+    </div>
+
+    <ul class="ficha">
+      <li>Tabuleiro <b>20 × 20</b> = 400 casas</li>
+      <li><b>256</b> situações possíveis</li>
+      <li><b>3</b> ações</li>
+      <li>Tabela com até <b>768</b> números</li>
+      <li>Treina <b>milhares</b> de partidas por segundo</li>
+      <li>JavaScript puro, <b>zero</b> bibliotecas</li>
+      <li>O cérebro fica salvo <b>no seu navegador</b></li>
+    </ul>
+  </section>
+
+  <!-- ======================= ROTEIRO ======================= -->
+  <section class="cartao roteiro">
+    <p class="olho">Para o dia da apresentação</p>
+    <h2>Roteiro de 3 minutos</h2>
+    <ol>
+      <li><span class="tempo">20s</span><div>Abra em <b>Ver a IA jogar</b>: "ela já treinou milhares de partidas sozinha, ninguém ensinou as regras para ela".</div></li>
+      <li><span class="tempo">40s</span><div>Clique em <b>Recomeçar o cérebro do zero</b> e depois em <b>Treinar a IA</b>. A cobra bate em tudo — e a curva começa a subir na frente da turma. Esse é o momento mais forte.</div></li>
+      <li><span class="tempo">30s</span><div>Volte para <b>Ver a IA jogar</b> e aponte para o painel <b>O cérebro agora</b>: as três notas mudam a cada passo, e a barra verde é a decisão dela.</div></li>
+      <li><span class="tempo">45s</span><div>Jogue você mesmo em <b>Você joga</b> e mostre o número <b>Concorda com você</b> subindo: suas jogadas viram lições.</div></li>
+      <li><span class="tempo">30s</span><div>Termine no <b>Duelo</b>, você contra ela. Se perder, é ainda melhor para a história.</div></li>
+      <li><span class="tempo">15s</span><div>Fechamento: explique que ela só enxerga três casas e que o passo seguinte seria trocar a tabela por uma rede neural.</div></li>
+    </ol>
+  </section>
+
+  <footer>
+    <span>Jogo da cobrinha + Q-learning tabular · feito em um único arquivo HTML</span>
+    <span class="num" id="rodape">cérebro salvo no navegador</span>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* =====================================================================
+   1. CÉREBRO PRÉ-TREINADO
+   Tabela Q de uma IA que já jogou 3.000 partidas sozinha, junto com a
+   curva real daquele treino. É só um ponto de partida: o botão
+   "Recomeçar o cérebro do zero" apaga tudo e ela volta a ser burra.
+   ===================================================================== */
+
+const CEREBRO_INICIAL = {"v":2,"Q":{"00010001010":[11.77,15.09,12.34],"00000011010":[9.1,14.37,9.28],"00000101010":[9.45,9.86,14.94],"00010000010":[12.19,19.91,7.36],"00001000010":[20.27,11.56,12.15],"00010000110":[9.07,13.93,7],"00000010110":[10.03,10.08,15.44],"00000100110":[15.88,11.72,10.22],"00000100010":[10.88,8.45,19.39],"10000010110":[-9.98,6.4,13.91],"00110000110":[9.24,13.62,-9.44],"00010000101":[9.18,9.4,15.21],"00001000101":[9.19,15.71,8.24],"00000100101":[15.11,11.42,9.58],"00000010101":[16.27,12.12,11.39],"10010000101":[-9.44,2.77,11.26],"01000010101":[14.27,-10,9.16],"00000010100":[10.13,8.1,18.3],"00010000100":[6.75,6.6,9.73],"00001000100":[12.02,17.96,9.03],"00000100100":[19.3,11.6,10.91],"00001000110":[13.14,15.31,11.84],"00010001001":[14.21,11.2,15.78],"00000011001":[13.55,15.24,11.5],"00010000001":[10.95,8.11,18.66],"00000100001":[10.91,18.18,7.72],"00001000001":[8.09,10.29,6.28],"10001000101":[-9.92,14.81,5.33],"01010000101":[9.99,-9.96,12.8],"00000101001":[10.18,15.52,9.21],"00001001001":[8.13,9.13,12.39],"00000010001":[19.45,11.93,11.57],"10000010100":[-8.67,5.59,17.27],"01000100100":[16.49,-9.99,10.96],"00001001010":[14.6,12.14,16.17],"00000010010":[6.14,10.36,6.47],"10010000110":[-9,12.05,1.23],"01000010110":[10.36,-9.25,13.93],"10000101010":[-9.87,4.81,14.53],"10010000100":[-2.5,-0.46,7.73],"10000011010":[-9.58,14.07,7.12],"01000101010":[10.73,-9.44,12.83],"10000101001":[-9.82,12.92,2.68],"00101000101":[9.53,12.78,-9.94],"00001001000":[11.11,7.4,18.25],"00000011000":[11.66,18.4,7.95],"00010001000":[17.09,11.32,11.07],"00110001010":[14.86,8.88,-10],"00110000100":[2.63,11.5,-5.78],"00100100101":[10.16,14.48,-10],"01001001000":[10.78,-9.25,19.41],"01001001001":[5.77,-9.76,13.16],"10010000010":[-6.84,17.94,3.94],"01001001010":[13.31,-10,14.81],"10001001001":[-9.44,5.06,13.29],"01010001001":[13.11,-10,14.47],"00100011001":[13.8,14.71,-10],"10000011000":[-9.44,18.42,5.76],"01000101000":[0,-2.5,10.15],"10001000001":[-5.78,0.09,9.44],"10001001000":[-8.22,4.28,18.46],"00100101000":[0.3,11.1,-4.37],"10001000100":[-9.82,18.65,1.68],"01000100010":[10.85,-9.44,18.77],"10000100010":[-9.58,5.26,16.6],"00100010010":[0,8.67,0],"01001000010":[15.59,-10,10.68],"00000101000":[7.32,6.93,10.91],"10010000001":[-9.58,4.75,19.84],"01000100110":[10.91,-10,14.44],"01000010010":[-0.25,-4.37,10.25],"01001000101":[6.84,-9.58,10.16],"01000100101":[8.29,-9.25,10.72],"01010000110":[5.75,-9.44,8.39],"00110001001":[12.7,9.6,-9.92],"01000101001":[5.53,-7.63,9.65],"01001000110":[6.94,-9.98,11.74],"00100010110":[5.94,9.78,-9.58],"00100011010":[6.35,14.19,-9.68],"01010001000":[17.98,-10,11.69],"00101000110":[11.06,15.68,-10],"01110000101":[7.74,-9,-9],"00100100110":[8.55,10.64,-9.44],"01010000010":[8.7,-2.5,4.97],"10100101010":[-2.5,10.42,-4.37],"10000010010":[-6.84,1.12,10.33],"00100010101":[10.02,11.83,-9.82],"00100101001":[9.67,13.48,-9.25],"01000011001":[7.91,-9.94,11.6],"00110000010":[10.66,18.64,-8.67],"00101001010":[8.27,11.55,-9.68],"01010001010":[7.61,-10,11.89],"01000011000":[9.08,-6.84,1.64],"00100100100":[16.98,11.11,-10],"01010000001":[10.62,-8.67,18.78],"00110000101":[2.3,8.11,-9.76],"00101000100":[11.36,18.23,-9.82],"00101001001":[5.65,8.57,-9],"00100011000":[10.34,18.78,-9.25],"01000010100":[11.35,-9.9,18.5],"01000100001":[8.57,-6.84,5.98],"01100010100":[4.7,-2.5,-2.5],"10000100001":[-9,16.78,6.17],"00100100001":[9.69,15.15,-8.22],"11000010101":[-5.78,-2.5,11.14],"01110000100":[3.74,-2.5,-2.5],"01001000001":[2.93,-2.5,10.64],"10100011010":[-4.37,12.95,-6.84],"01110001010":[8.89,-4.37,-2.5],"00101000010":[16.76,12.05,-10],"01000010001":[19,-9.99,11.31],"00100100010":[10.13,6.2,-4.37],"01000011010":[4.15,-9.68,9.52],"11001001000":[-2.5,-4.37,20.43],"10000101000":[-2.5,4.05,9.81],"00100101010":[8.64,5.37,-8.67],"01010000100":[1.06,-2.5,11.86],"00101001000":[4.38,8.12,-4.37],"01100011010":[-1.72,-5.78,-7.63],"00101000001":[3.25,9.48,-2.5],"01100100110":[10.21,-2.5,-8.22],"01100100100":[15.45,-5.78,0],"01100101010":[-6.32,-8.22,-8.22],"00110000001":[6.98,3.73,-4.37],"00100010001":[19.25,11.67,-10],"01100011001":[7.6,-8.67,-6.84],"01101001010":[6.83,-2.5,-5.78],"01100010110":[7.29,-7.63,-8.67],"00110001000":[19.05,11.19,-10],"01001000100":[3.58,-6.84,7.15],"10110001000":[-4.37,11.7,-2.5],"11010000101":[-4.37,-4.37,12.71],"11000100001":[-2.5,-2.5,7.35],"10100100101":[-7.63,11.37,-6.84],"01101000101":[-0.52,-5.78,-6.84],"01101000100":[5.15,-2.5,-2.5],"10101000100":[0,20.25,-4.37],"10110000101":[-5.78,7.58,-2.5],"11000100101":[-6.84,-6.84,10.26],"10100100010":[-2.5,6.89,-2.5],"01110001000":[16.77,0,-4.37],"11000100010":[-5.78,-5.78,19.17],"11000010100":[-6.84,-5.78,18.83],"11000100100":[0,-4.37,10.12],"10101000101":[-4.37,14.03,-5.78],"11110000110":[-9.99,-9.99,-9.99],"01100010101":[5.66,-2.5,-5.78],"01101001001":[5.33,-6.84,-6.84],"01100101000":[3.71,0,0],"10100101000":[-2.5,7.88,0],"11010000001":[-5.78,-6.84,18.72],"11001001010":[-6.84,-9,14.36],"11000101010":[0,0,13.02],"00100010100":[3.78,9.24,-2.5],"11110001010":[-10,-10,-10],"01101000010":[11.32,-6.84,-2.5],"01100011000":[4.26,0,-5.78],"11100100110":[-10,-10,-10],"11001000110":[-8.22,-4.37,6.94],"10100101001":[-5.78,11.62,-5.78],"10100011000":[-2.5,18.3,0],"11000011010":[-2.5,-5.78,-0.99],"11000010110":[-6.84,-2.5,14.2],"01100010001":[14.79,-2.5,0],"01100100101":[12.1,-2.5,-2.5],"11110001001":[-9.99,-10,-9.99],"10101000001":[-2.5,4.28,-2.5],"10100010110":[-2.5,8.68,-4.37],"10101001010":[-4.37,8.45,-7.63],"11010001000":[-2.5,-2.5,8.34],"01110001001":[9,-2.5,-5.78],"10100010001":[-2.5,11.63,0],"11000101001":[-5.78,-4.37,6.63],"10100010101":[-4.37,5.51,-2.5],"01101000110":[6.51,-5.78,-6.84],"11000100110":[-2.5,-6.84,12.85],"10001001010":[0,-0.25,8.9],"11100101010":[-10,-10,-10],"10110000010":[-5.78,15.19,-4.37],"10101000110":[-4.37,12.84,-4.37],"11001001001":[-4.37,-4.37,12.14],"10110001010":[-6.84,12.42,-4.37],"11100010110":[-9.99,-9.98,-9.99],"11001000101":[-2.5,0,7.18],"01110000110":[4.66,-8.22,-7.63],"11100010101":[-10,-10,-10],"10100011001":[-6.84,14.37,-5.78],"11010001010":[-6.84,-6.84,7.99],"01100101001":[10.05,-2.5,-4.37],"11000011000":[-2.5,0,5.27],"10101001001":[-2.5,10.97,-2.5],"10110000110":[0,8.54,0],"10010001000":[-4.37,5.23,0.87],"10100100001":[-2.5,17.77,-5.78],"10000011001":[-2.5,13.03,-2.23],"10110001001":[-5.78,8.14,-5.78],"01101000001":[1.62,-2.5,-2.5],"11101000100":[-6.84,-6.84,-6.84],"11100011010":[-9.99,-9.99,-9.99],"11010000110":[-8.22,-2.5,7.45],"11110000010":[-8.22,-8.22,-8.22],"10100100110":[-4.37,7.94,-7.63],"01110000010":[-0.07,-4.37,-4.37],"11001000001":[0,-2.5,3.45],"10010001001":[0,0.98,6.04],"10000100101":[-4.37,12.02,2.19],"11001000010":[-4.37,0,6.61],"11000101000":[0,-2.5,6.43],"10101000010":[-4.37,8.96,-4.37],"11010001001":[-9.44,-4.37,13.42],"10000010101":[-2.5,1.02,8.1],"11000010001":[-2.5,-2.5,7.55],"11100101001":[-9.9,-9.92,-9.9],"01100100010":[5.37,0,0],"10000010001":[-4.37,-2.84,3.35],"11100100101":[-9.99,-9.99,-9.99],"11001000100":[0,0,7.07],"11110000101":[-10,-10,-10],"10100100100":[-4.37,8.65,-6.84],"11100011001":[-9.99,-9.99,-9.99],"11101000110":[-9.99,-9.99,-9.99],"11000011001":[-4.37,-6.84,7.31],"10101001000":[0,6.97,-4.37],"11101001010":[-10,-10,-10],"01101001000":[-0.57,-5.78,-5.78],"11101000101":[-9.94,-9.94,-9.94],"10001000010":[-5.78,5.45,-0.07],"10001000110":[-2.5,9.24,-1.46],"11100100010":[-6.84,-6.84,-5.78],"11100010100":[-4.37,-5.78,-5.78],"10000100110":[-2.5,2.41,7.6],"10010001010":[-2.5,11.07,0.73],"11100100100":[-7.63,-7.63,-7.63],"11101000010":[-5.78,-6.84,-6.84],"11010000100":[0,0,7.63],"11110001000":[-8.22,-8.67,-8.67],"01110000001":[4.22,-2.5,-4.37],"10000100100":[0,5.58,0.15],"11101001000":[-5.78,-5.78,-5.78],"10110000001":[0,7.3,-2.5],"11100010001":[-6.84,-6.84,-7.63],"11100011000":[-6.84,-5.78,-6.84],"01100100001":[5.77,-2.5,-2.5],"11101001001":[-9.9,-9.92,-9.92],"11010000010":[0,-2.5,7.69],"11100100001":[-6.84,-6.84,-6.84],"11110000001":[-5.78,-5.78,-5.78],"10100010100":[-2.5,6.89,-5.78],"11110000100":[-2.5,-2.5,-2.5],"10100010010":[0,-0.47,-2.5],"01100010010":[2.02,-2.5,-2.5],"11000010010":[0,0,8.63],"10110000100":[0,6.62,-2.5],"11101000001":[-2.5,-2.5,0],"11100101000":[-2.5,-2.5,-2.5]},"episodios":3000,"epsilon":0.02,"melhor":60,"hist":[0,0,0,0,1,0,1,2,1,0,1,1,3,2,0,2,2,3,3,1,0,3,2,2,0,3,1,7,3,4,1,6,3,1,1,3,4,4,4,1,7,0,2,10,6,8,7,4,9,2,6,5,4,4,13,5,3,4,6,12,2,5,10,3,9,16,7,13,15,13,8,13,15,7,5,3,26,25,1,15,17,13,32,21,3,19,16,16,28,29,6,18,32,18,1,9,15,40,14,30,39,14,33,22,18,35,19,18,21,33,19,12,29,17,18,3,26,24,44,18,18,19,23,39,23,23,13,31,30,11,24,37,6,17,18,6,25,24,37,1,17,37,16,28,23,11,24,23,19,2,13,34,29,24,32,29,26,24,5,4,9,43,20,18,43,51,24,19,17,32,32,23,12,16,27,30,36,11,24,31,3,7,8,32,31,8,21,22,28,24,17,25,31,11,24,25,29,31,31,14,34,13,20,13,15,31,20,27,10,36,15,16,37,23,30,32,16,9,13,26,8,14,14,1,26,13,10,4,10,19,20,10,20,11,24,30,18,18,23,27,16,31,15,9,24,3,17,22,30,19,17,26,37,16,30,20,10,18,22,26,20,27,20,16,17,3,7,31,24,14,11,20,16,15,34,16,11,16,25,37,31,40,14,24,25,15,34,24,12,4,10,9,30,21,33,32,3,28,19,7,19,15,22,5,20,24,23,5,25,6,20,30,20,4,19,24,8,20,7,2,27,12,4,26,8,28,26,29,31,18,32,49,22,25,9,40,19,18,2,14,14,34,37,33,30,2,23,31,13,17,16,24,19,14,16,37,18,22,11,36,26,9,39,21,28,40,23,12,18,38,12,26,44,1,16,20],"escala":8,"ultimos":[2,38,31,23,14,24,16,27,25,12,14,12,31,26,41,17,17,26,8,29,32,31,31,28,18,44,17,19,18,34,17,19,29,1,21,42,21,21,18,30,33,16,36,20,4,20,9,18,36,20]};
+
+/* =====================================================================
+   2. O JOGO
+   Direções em sentido horário: 0 direita, 1 baixo, 2 esquerda, 3 cima.
+   As ações da IA são relativas à cabeça: 0 reto, 1 direita, 2 esquerda.
+   ===================================================================== */
+
+const DIRS = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }];
+const COLS = 20, ROWS = 20, CEL = 20, LADO = COLS * CEL;
+
+class Jogo {
+  constructor(opcoes) {
+    opcoes = opcoes || {};
+    this.cols = COLS;
+    this.rows = ROWS;
+    this.muros = opcoes.muros !== false;
+    this.fome = opcoes.fome !== false;   // termina a partida se ficar rodando à toa
+    this.raras = !!opcoes.raras;         // comida dourada (só nos modos com jogador)
+    this.reiniciar();
+  }
+
+  k(x, y) { return y * this.cols + x; }
+
+  reiniciar() {
+    const cx = Math.floor(this.cols / 2), cy = Math.floor(this.rows / 2);
+    this.cobra = [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }];
+    this.ocup = new Set(this.cobra.map(p => this.k(p.x, p.y)));
+    this.dir = 0;
+    this.pontos = 0;
+    this.passos = 0;
+    this.jejum = 0;
+    this.vivo = true;
+    this.venceu = false;
+    this.motivo = "";
+    this.comida = null;
+    this.comidaRara = null;
+    this.raraRestante = 0;
+    this.gerarComida();
+  }
+
+  celulasLivres() {
+    const livres = [];
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        if (this.ocup.has(this.k(x, y))) continue;
+        if (this.comida && this.comida.x === x && this.comida.y === y) continue;
+        if (this.comidaRara && this.comidaRara.x === x && this.comidaRara.y === y) continue;
+        livres.push({ x: x, y: y });
+      }
+    }
+    return livres;
+  }
+
+  gerarComida() {
+    const livres = this.celulasLivres();
+    if (!livres.length) { this.comida = null; this.venceu = true; this.vivo = false; this.motivo = "vitoria"; return; }
+    this.comida = livres[(Math.random() * livres.length) | 0];
+  }
+
+  gerarRara() {
+    const livres = this.celulasLivres();
+    if (!livres.length) return;
+    this.comidaRara = livres[(Math.random() * livres.length) | 0];
+    this.raraRestante = 7;
+  }
+
+  vizinha(x, y, dir) {
+    let nx = x + DIRS[dir].x, ny = y + DIRS[dir].y;
+    if (nx < 0 || ny < 0 || nx >= this.cols || ny >= this.rows) {
+      if (this.muros) return null;             // com muros, sair do tabuleiro é morte
+      nx = (nx + this.cols) % this.cols;        // sem muros, aparece do outro lado
+      ny = (ny + this.rows) % this.rows;
+    }
+    return { x: nx, y: ny };
+  }
+
+  // A ponta da cauda não conta como obstáculo: ela sai da casa no mesmo passo.
+  bloqueada(c) {
+    if (!this.ocup.has(this.k(c.x, c.y))) return false;
+    const cauda = this.cobra[this.cobra.length - 1];
+    return !(this.cobra.length > 1 && c.x === cauda.x && c.y === cauda.y);
+  }
+
+  perigo(dir) {
+    const c = this.vizinha(this.cobra[0].x, this.cobra[0].y, dir);
+    if (!c) return true;
+    return this.bloqueada(c);
+  }
+
+  dist(a, b) {
+    if (!a || !b) return 0;
+    let dx = Math.abs(a.x - b.x), dy = Math.abs(a.y - b.y);
+    if (!this.muros) { dx = Math.min(dx, this.cols - dx); dy = Math.min(dy, this.rows - dy); }
+    return dx + dy;
+  }
+
+  passo(acao) {
+    if (!this.vivo) return { morreu: true, comeu: false };
+
+    if (acao === 1) this.dir = (this.dir + 1) % 4;
+    else if (acao === 2) this.dir = (this.dir + 3) % 4;
+
+    this.passos++;
+    const destino = this.vizinha(this.cobra[0].x, this.cobra[0].y, this.dir);
+
+    if (!destino) { this.vivo = false; this.motivo = "parede"; return { morreu: true, comeu: false }; }
+    if (this.bloqueada(destino)) { this.vivo = false; this.motivo = "corpo"; return { morreu: true, comeu: false }; }
+
+    const comeu = !!(this.comida && destino.x === this.comida.x && destino.y === this.comida.y);
+    const comeuRara = !!(this.comidaRara && destino.x === this.comidaRara.x && destino.y === this.comidaRara.y);
+
+    if (!comeu && !comeuRara) {
+      const cauda = this.cobra.pop();
+      this.ocup.delete(this.k(cauda.x, cauda.y));
+      this.jejum++;
+    } else {
+      this.jejum = 0;
+    }
+
+    this.cobra.unshift(destino);
+    this.ocup.add(this.k(destino.x, destino.y));
+
+    if (comeu) { this.pontos++; this.comida = null; this.gerarComida(); }
+    if (comeuRara) { this.pontos += 3; this.comidaRara = null; }
+
+    if (this.fome && this.jejum > 80 + this.cobra.length * 4) {
+      this.vivo = false; this.motivo = "fome";
+      return { morreu: true, comeu: comeu, comeuRara: comeuRara, fome: true };
+    }
+    return { morreu: false, comeu: comeu, comeuRara: comeuRara };
+  }
+}
+
+/* =====================================================================
+   3. A IA (Q-learning tabular)
+   ===================================================================== */
+
+const IA = {
+  Q: {},
+  alfa: 0.25,
+  gama: 0.90,
+  epsilon: 1,
+  epsilonMin: 0.02,
+  decaimento: 0.995,
+  epsilonJogo: 0.01,      // quase sem arriscar quando está só jogando
+  episodios: 0,
+  melhor: 0,
+  licoes: 0,
+  hist: [],
+  escala: 1,
+  ultimos: [],
+
+  // O estado: 11 respostas de sim/não viradas em texto, tipo "01000101 0".
+  estado: function (j) {
+    const d = j.dir, c = j.cobra[0], f = j.comida || c;
+    let dx = f.x - c.x, dy = f.y - c.y;
+    if (!j.muros) {                       // sem muros vale o caminho mais curto, que pode ser pela borda
+      if (Math.abs(dx) > j.cols / 2) dx = -dx;
+      if (Math.abs(dy) > j.rows / 2) dy = -dy;
+    }
+    return (j.perigo(d) ? 1 : 0) + "" + (j.perigo((d + 1) % 4) ? 1 : 0) + (j.perigo((d + 3) % 4) ? 1 : 0)
+      + (d === 0 ? 1 : 0) + (d === 1 ? 1 : 0) + (d === 2 ? 1 : 0) + (d === 3 ? 1 : 0)
+      + (dx > 0 ? 1 : 0) + (dx < 0 ? 1 : 0) + (dy > 0 ? 1 : 0) + (dy < 0 ? 1 : 0);
+  },
+
+  valores: function (s) {
+    let v = this.Q[s];
+    if (!v) { v = this.Q[s] = [0, 0, 0]; }
+    return v;
+  },
+
+  melhorAcao: function (s) {
+    const v = this.valores(s);
+    let melhores = [0];
+    for (let i = 1; i < 3; i++) {
+      if (v[i] > v[melhores[0]]) melhores = [i];
+      else if (v[i] === v[melhores[0]]) melhores.push(i);
+    }
+    return melhores[(Math.random() * melhores.length) | 0];
+  },
+
+  escolher: function (s, eps) {
+    if (Math.random() < eps) return (Math.random() * 3) | 0;   // exploração
+    return this.melhorAcao(s);                                 // aproveitamento
+  },
+
+  // O coração de tudo: uma linha de conta.
+  aprender: function (s, a, r, s2, terminal) {
+    const v = this.valores(s);
+    let futuro = 0;
+    if (!terminal) {
+      const v2 = this.valores(s2);
+      futuro = Math.max(v2[0], v2[1], v2[2]);
+    }
+    v[a] += this.alfa * (r + this.gama * futuro - v[a]);
+  },
+
+  // Recompensa de um passo, a mesma para a IA e para o jogador humano.
+  recompensa: function (res, distAntes, distDepois) {
+    if (res.morreu) return res.fome ? -5 : -10;
+    if (res.comeu || res.comeuRara) return 10;
+    return distDepois < distAntes ? 1 : -1;
+  },
+
+  registrarPartida: function (pontos) {
+    this.episodios++;
+    if (pontos > this.melhor) this.melhor = pontos;
+    this.ultimos.push(pontos);
+    if (this.ultimos.length > 50) this.ultimos.shift();
+    if (this.episodios % this.escala === 0) this.hist.push(pontos);
+    if (this.hist.length > 600) {
+      this.hist = this.hist.filter(function (_, i) { return i % 2 === 0; });
+      this.escala *= 2;
+    }
+  },
+
+  media50: function () {
+    if (!this.ultimos.length) return 0;
+    let s = 0;
+    for (let i = 0; i < this.ultimos.length; i++) s += this.ultimos[i];
+    return s / this.ultimos.length;
+  },
+
+  zerar: function () {
+    this.Q = {};
+    this.epsilon = 1;
+    this.episodios = 0;
+    this.melhor = 0;
+    this.licoes = 0;
+    this.hist = [];
+    this.escala = 1;
+    this.ultimos = [];
+  },
+
+  exportar: function () {
+    const Qr = {};
+    for (const s in this.Q) {
+      Qr[s] = [Math.round(this.Q[s][0] * 100) / 100, Math.round(this.Q[s][1] * 100) / 100, Math.round(this.Q[s][2] * 100) / 100];
+    }
+    return {
+      v: 2, Q: Qr, episodios: this.episodios, epsilon: Math.round(this.epsilon * 1000) / 1000,
+      melhor: this.melhor, licoes: this.licoes, hist: this.hist, escala: this.escala, ultimos: this.ultimos
+    };
+  },
+
+  importar: function (d) {
+    if (!d || typeof d !== "object" || !d.Q) return false;
+    const novo = {};
+    let n = 0;
+    for (const s in d.Q) {
+      const v = d.Q[s];
+      if (Array.isArray(v) && v.length === 3) {
+        novo[s] = [Number(v[0]) || 0, Number(v[1]) || 0, Number(v[2]) || 0];
+        n++;
+      }
+    }
+    if (!n) return false;
+    this.Q = novo;
+    this.episodios = Number(d.episodios) || 0;
+    this.epsilon = typeof d.epsilon === "number" ? d.epsilon : this.epsilonMin;
+    this.melhor = Number(d.melhor) || 0;
+    this.licoes = Number(d.licoes) || 0;
+    this.hist = Array.isArray(d.hist) ? d.hist.slice(-600).map(Number) : [];
+    this.escala = Number(d.escala) || 1;
+    this.ultimos = Array.isArray(d.ultimos) ? d.ultimos.slice(-50).map(Number) : [];
+    return true;
+  }
+};
+
+/* =====================================================================
+   4. MEMÓRIA DO NAVEGADOR
+   ===================================================================== */
+
+const CHAVE = "cobraQueAprende.v2";
+
+function lerArmazenado(chave) {
+  try { return localStorage.getItem(chave); } catch (e) { return null; }
+}
+function gravarArmazenado(chave, valor) {
+  try { localStorage.setItem(chave, valor); return true; } catch (e) { return false; }
+}
+
+let recordeHumano = 0;
+let opcoes = { muros: true, som: true, velocidade: 120, turbo: false };
+
+function salvar() {
+  const dados = IA.exportar();
+  dados.recorde = recordeHumano;
+  dados.opcoes = opcoes;
+  gravarArmazenado(CHAVE, JSON.stringify(dados));
+}
+
+let salvarPendente = false;
+function salvarLogo() {
+  if (salvarPendente) return;
+  salvarPendente = true;
+  setTimeout(function () { salvarPendente = false; salvar(); }, 1500);
+}
+
+function carregar() {
+  const bruto = lerArmazenado(CHAVE);
+  if (bruto) {
+    try {
+      const d = JSON.parse(bruto);
+      if (IA.importar(d)) {
+        recordeHumano = Number(d.recorde) || 0;
+        if (d.opcoes) {
+          opcoes.muros = d.opcoes.muros !== false;
+          opcoes.som = d.opcoes.som !== false;
+          opcoes.velocidade = Number(d.opcoes.velocidade) || 120;
+          opcoes.turbo = !!d.opcoes.turbo;
+        }
+        return "salvo";
+      }
+    } catch (e) { /* dado estragado: começa do cérebro pré-treinado */ }
+  }
+  IA.importar(CEREBRO_INICIAL);
+  return "pronto";
+}
+
+/* =====================================================================
+   5. SOM (sintetizado na hora, sem arquivos)
+   ===================================================================== */
+
+let audio = null;
+
+function bip(freq, dur, tipo, vol) {
+  if (!opcoes.som) return;
+  try {
+    if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === "suspended") audio.resume();
+    const osc = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
+    osc.type = tipo;
+    osc.frequency.setValueAtTime(freq, t);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g); g.connect(audio.destination);
+    osc.start(t); osc.stop(t + dur);
+  } catch (e) { /* som é enfeite: se falhar, o jogo continua */ }
+}
+
+const somComer = function () { bip(520, .07, "square", .1); setTimeout(function () { bip(760, .09, "square", .1); }, 50); };
+const somRaro = function () { [880, 1100, 1320].forEach(function (f, i) { setTimeout(function () { bip(f, .09, "triangle", .1); }, i * 65); }); };
+const somMorte = function () { bip(300, .26, "sawtooth", .11); setTimeout(function () { bip(170, .4, "sawtooth", .11); }, 140); };
+const somNivel = function () { [440, 660, 880].forEach(function (f, i) { setTimeout(function () { bip(f, .09, "sine", .1); }, i * 75); }); };
+const somClique = function () { bip(620, .04, "triangle", .05); };
+const somVitoria = function () { [660, 880, 1100, 1320].forEach(function (f, i) { setTimeout(function () { bip(f, .1, "square", .09); }, i * 90); }); };
+
+/* =====================================================================
+   6. ELEMENTOS DA PÁGINA
+   ===================================================================== */
+
+const $ = function (id) { return document.getElementById(id); };
+
+const telaA = $("telaA"), ctxA = telaA.getContext("2d");
+const telaB = $("telaB"), ctxB = telaB.getContext("2d");
+const grafico = $("grafico"), gctx = grafico.getContext("2d");
+
+const elAviso = $("aviso");
+const elTabuleiros = $("tabuleiros");
+const quadroB = $("quadroB");
+const tituloA = $("tituloA");
+
+/* =====================================================================
+   7. DESENHO
+   ===================================================================== */
+
+const CORES = {
+  humano: { cabeca: "#c9ffe6", corpo: "#5ef2a4", corpoFim: "#1f8f63", brilho: "rgba(94,242,164,.85)", pupila: "#04201a" },
+  ia: { cabeca: "#e6d8ff", corpo: "#b388ff", corpoFim: "#6741c4", brilho: "rgba(179,136,255,.85)", pupila: "#15082c" }
+};
+
+// O fundo (xadrez + grade) é sempre igual: desenha uma vez e reaproveita.
+const fundo = document.createElement("canvas");
+fundo.width = LADO; fundo.height = LADO;
+(function () {
+  const c = fundo.getContext("2d");
+  const grad = c.createLinearGradient(0, 0, LADO, LADO);
+  grad.addColorStop(0, "#061614");
+  grad.addColorStop(1, "#0a2220");
+  c.fillStyle = grad;
+  c.fillRect(0, 0, LADO, LADO);
+  for (let i = 0; i < COLS; i++) {
+    for (let j = 0; j < ROWS; j++) {
+      if ((i + j) % 2 === 0) continue;
+      c.fillStyle = "rgba(255,255,255,.018)";
+      c.fillRect(i * CEL, j * CEL, CEL, CEL);
+    }
+  }
+  c.strokeStyle = "rgba(126,219,188,.07)";
+  c.lineWidth = 1;
+  for (let x = 0; x <= LADO; x += CEL) { c.beginPath(); c.moveTo(x + .5, 0); c.lineTo(x + .5, LADO); c.stroke(); }
+  for (let y = 0; y <= LADO; y += CEL) { c.beginPath(); c.moveTo(0, y + .5); c.lineTo(LADO, y + .5); c.stroke(); }
+})();
+
+function hexPara(h) {
+  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+}
+function misturar(a, b, t) {
+  const A = hexPara(a), B = hexPara(b);
+  return "rgb(" + Math.round(A[0] + (B[0] - A[0]) * t) + "," + Math.round(A[1] + (B[1] - A[1]) * t) + "," + Math.round(A[2] + (B[2] - A[2]) * t) + ")";
+}
+
+function caixa(c, x, y, w, h, r) {
+  c.beginPath();
+  if (c.roundRect) { c.roundRect(x, y, w, h, r); return; }
+  c.rect(x, y, w, h);
+}
+
+function desenharComida(c, comida, t) {
+  if (!comida) return;
+  const cx = comida.x * CEL + CEL / 2, cy = comida.y * CEL + CEL / 2;
+  const r = CEL * .40 * (1 + Math.sin(t * 5) * .10);
+  const br = c.createRadialGradient(cx, cy, 1, cx, cy, r * 2.6);
+  br.addColorStop(0, "rgba(255,122,99,.45)");
+  br.addColorStop(1, "rgba(255,122,99,0)");
+  c.fillStyle = br;
+  c.beginPath(); c.arc(cx, cy, r * 2.6, 0, Math.PI * 2); c.fill();
+  const corpo = c.createRadialGradient(cx - r * .3, cy - r * .35, 1, cx, cy, r);
+  corpo.addColorStop(0, "#ffb3a3");
+  corpo.addColorStop(1, "#e74c3c");
+  c.fillStyle = corpo;
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+  c.fillStyle = "#5ef2a4";
+  c.beginPath(); c.ellipse(cx + r * .3, cy - r * .95, r * .40, r * .20, .7, 0, Math.PI * 2); c.fill();
+}
+
+function desenharRara(c, rara, restante, t) {
+  if (!rara) return;
+  const cx = rara.x * CEL + CEL / 2, cy = rara.y * CEL + CEL / 2;
+  const r = CEL * .46;
+  c.globalAlpha = (restante <= 2 && Math.floor(restante * 6) % 2 === 0) ? .3 : 1;
+  const br = c.createRadialGradient(cx, cy, 1, cx, cy, r * 2.8);
+  br.addColorStop(0, "rgba(255,194,71,.6)");
+  br.addColorStop(1, "rgba(255,194,71,0)");
+  c.fillStyle = br;
+  c.beginPath(); c.arc(cx, cy, r * 2.8, 0, Math.PI * 2); c.fill();
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(t * 1.4);
+  c.fillStyle = "#ffc247";
+  c.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const ang = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const rr = i % 2 === 0 ? r : r * .45;
+    const px = Math.cos(ang) * rr, py = Math.sin(ang) * rr;
+    if (i === 0) c.moveTo(px, py); else c.lineTo(px, py);
+  }
+  c.closePath(); c.fill();
+  c.restore();
+  c.globalAlpha = 1;
+}
+
+function desenharCobra(c, jogo, cor) {
+  const n = jogo.cobra.length;
+  for (let i = n - 1; i >= 1; i--) {
+    const p = jogo.cobra[i];
+    c.fillStyle = misturar(cor.corpo, cor.corpoFim, Math.min(1, i / Math.max(6, n)));
+    caixa(c, p.x * CEL + 1.5, p.y * CEL + 1.5, CEL - 3, CEL - 3, 5);
+    c.fill();
+    c.fillStyle = "rgba(255,255,255,.10)";
+    caixa(c, p.x * CEL + 3, p.y * CEL + 3, (CEL - 6) * .45, CEL - 6, 3);
+    c.fill();
+  }
+  const cab = jogo.cobra[0];
+  c.save();
+  c.shadowColor = cor.brilho;
+  c.shadowBlur = 11;
+  c.fillStyle = cor.cabeca;
+  caixa(c, cab.x * CEL + 1, cab.y * CEL + 1, CEL - 2, CEL - 2, 6);
+  c.fill();
+  c.restore();
+
+  const cx = cab.x * CEL + CEL / 2, cy = cab.y * CEL + CEL / 2;
+  const dx = DIRS[jogo.dir].x, dy = DIRS[jogo.dir].y;
+  const px = -dy, py = dx;
+  for (const lado of [1, -1]) {
+    const ex = cx + dx * 3.4 + px * lado * 4.2;
+    const ey = cy + dy * 3.4 + py * lado * 4.2;
+    c.fillStyle = "#ffffff";
+    c.beginPath(); c.arc(ex, ey, 3.5, 0, Math.PI * 2); c.fill();
+    c.fillStyle = cor.pupila;
+    c.beginPath(); c.arc(ex + dx * 1.5, ey + dy * 1.5, 1.9, 0, Math.PI * 2); c.fill();
+  }
+}
+
+function desenharParticulas(c, lista) {
+  for (let i = 0; i < lista.length; i++) {
+    const p = lista[i];
+    c.globalAlpha = Math.max(0, 1 - p.t / p.vida);
+    c.fillStyle = p.cor;
+    c.beginPath(); c.arc(p.x, p.y, p.raio, 0, Math.PI * 2); c.fill();
+  }
+  c.globalAlpha = 1;
+}
+
+function desenharAviso(c, titulo, sub, cor) {
+  c.fillStyle = "rgba(3,12,11,.82)";
+  c.fillRect(0, 0, LADO, LADO);
+  c.textAlign = "center";
+  c.fillStyle = cor || "#b6ffd9";
+  c.font = "400 21px 'Silkscreen', 'Courier New', monospace";
+  const linhas = String(titulo).split("\n");
+  for (let i = 0; i < linhas.length; i++) {
+    c.fillText(linhas[i], LADO / 2, LADO / 2 - 12 + i * 26);
+  }
+  if (sub) {
+    c.fillStyle = "#8ba8a2";
+    c.font = "400 13px 'Rubik', sans-serif";
+    c.fillText(sub, LADO / 2, LADO / 2 + 20 + (linhas.length - 1) * 26);
+  }
+}
+
+function desenharPainel(p) {
+  const c = p.ctx;
+  c.clearRect(0, 0, LADO, LADO);
+  c.drawImage(fundo, 0, 0);
+  if (p.jogo) {
+    desenharComida(c, p.jogo.comida, tempo);
+    desenharRara(c, p.jogo.comidaRara, p.jogo.raraRestante, tempo);
+    desenharCobra(c, p.jogo, CORES[p.dono]);
+  }
+  desenharParticulas(c, p.particulas);
+  if (p.aviso) desenharAviso(c, p.aviso.titulo, p.aviso.sub, p.aviso.cor);
+}
+
+/* =====================================================================
+   8. PARTÍCULAS
+   ===================================================================== */
+
+function soltar(p, x, y, cor, total, vel) {
+  if (p.particulas.length > 260) return;
+  for (let i = 0; i < total; i++) {
+    const ang = Math.random() * Math.PI * 2;
+    const v = vel * (.4 + Math.random() * .8);
+    p.particulas.push({
+      x: x, y: y, vx: Math.cos(ang) * v, vy: Math.sin(ang) * v,
+      cor: cor, vida: .5 + Math.random() * .4, t: 0, raio: 1.6 + Math.random() * 2.6
+    });
+  }
+}
+
+function moverParticulas(p, dt) {
+  for (let i = p.particulas.length - 1; i >= 0; i--) {
+    const q = p.particulas[i];
+    q.t += dt;
+    q.x += q.vx * dt; q.y += q.vy * dt;
+    q.vx *= .95; q.vy *= .95;
+    if (q.t >= q.vida) p.particulas.splice(i, 1);
+  }
+}
+
+function centroDaCabeca(jogo) {
+  return { x: jogo.cobra[0].x * CEL + CEL / 2, y: jogo.cobra[0].y * CEL + CEL / 2 };
+}
+
+/* =====================================================================
+   9. ESTADO DA APLICAÇÃO
+   ===================================================================== */
+
+const painelA = { ctx: ctxA, jogo: null, dono: "ia", particulas: [], acumulado: 0, aviso: null, esperando: false, espera: 0 };
+const painelB = { ctx: ctxB, jogo: null, dono: "ia", particulas: [], acumulado: 0, aviso: null, esperando: false, espera: 0 };
+
+let modo = "assistir";
+let pausado = false;
+let desejo = null;        // direção absoluta que o jogador pediu
+let tempo = 0;
+let nivel = 1;
+let acordos = [];         // últimas comparações entre a sua jogada e a da IA
+let epsPorSegundo = 0;
+let jogoTreino = null;
+let ultimoEstadoVisto = null;
+let fimDeDuelo = false;
+
+function velocidadeJogo() {
+  return Math.max(55, opcoes.velocidade - (nivel - 1) * 6);
+}
+
+/* =====================================================================
+   10. TROCA DE MODO
+   ===================================================================== */
+
+function trocarModo(novo) {
+  modo = novo;
+  pausado = false;
+  desejo = null;
+  nivel = 1;
+  fimDeDuelo = false;
+  painelA.particulas = [];
+  painelB.particulas = [];
+  painelA.acumulado = painelB.acumulado = 0;
+  painelA.espera = painelB.espera = 0;
+  painelA.aviso = painelB.aviso = null;
+
+  const botoes = document.querySelectorAll(".modo");
+  for (let i = 0; i < botoes.length; i++) {
+    botoes[i].setAttribute("aria-pressed", botoes[i].dataset.modo === novo ? "true" : "false");
+  }
+
+  quadroB.hidden = novo !== "duelo";
+  elTabuleiros.classList.toggle("duelo", novo === "duelo");
+  $("rotuloUm").textContent = novo === "treino" ? "Última partida" : "Pontos";
+  $("rotuloDois").textContent = (novo === "assistir" || novo === "treino") ? "Melhor IA" : "Seu recorde";
+
+  if (novo === "assistir") {
+    painelA.dono = "ia";
+    painelA.jogo = new Jogo({ muros: opcoes.muros, fome: true });
+    painelA.esperando = false;
+    tituloA.textContent = "A IA JOGANDO";
+    dizer("A IA está jogando sozinha com o que já aprendeu. Ela continua aprendendo a cada passo.", "roxo");
+  } else if (novo === "treino") {
+    jogoTreino = new Jogo({ muros: opcoes.muros, fome: true });
+    painelA.dono = "ia";
+    painelA.jogo = jogoTreino;
+    painelA.esperando = false;
+    tituloA.textContent = "TREINANDO EM VELOCIDADE MÁXIMA";
+    dizer("Treinando: milhares de partidas por segundo. Olhe a curva de aprendizado ao lado.", "roxo");
+  } else if (novo === "jogador") {
+    painelA.dono = "humano";
+    painelA.jogo = new Jogo({ muros: opcoes.muros, fome: false, raras: true });
+    painelA.esperando = true;
+    tituloA.textContent = "VOCÊ JOGANDO";
+    dizer("Use as setas, WASD ou deslize o dedo para começar. Cada jogada sua vira uma lição.");
+  } else if (novo === "duelo") {
+    painelA.dono = "humano";
+    painelA.jogo = new Jogo({ muros: opcoes.muros, fome: false });
+    painelB.dono = "ia";
+    painelB.jogo = new Jogo({ muros: opcoes.muros, fome: true });
+    painelA.esperando = true;
+    painelB.esperando = true;
+    tituloA.textContent = "VOCÊ";
+    dizer("Duelo: quem morrer primeiro perde. Faça um movimento para começar.", "ouro");
+  }
+
+  atualizarBotaoPausa();
+  atualizarHUD();
+  desenharGrafico();
+}
+
+function dizer(texto, classe) {
+  elAviso.textContent = texto;
+  elAviso.className = "aviso" + (classe ? " " + classe : "");
+}
+
+/* =====================================================================
+   11. UM PASSO DE CADA JOGO
+   ===================================================================== */
+
+// Converte a direção que o jogador pediu na ação relativa correspondente.
+function acaoRelativa(dirAtual, dirDesejada) {
+  const d = (dirDesejada - dirAtual + 4) % 4;
+  if (d === 1) return 1;   // virou à direita
+  if (d === 3) return 2;   // virou à esquerda
+  return 0;                // reto (e um pedido de meia-volta vira "reto", porque é impossível)
+}
+
+function passoDoHumano(p) {
+  const j = p.jogo;
+  const s = IA.estado(j);
+  const acao = acaoRelativa(j.dir, desejo === null ? j.dir : desejo);
+
+  // A IA opina sobre a sua jogada antes de você fazer — é daqui que sai o "concorda com você".
+  acordos.push(acao === IA.melhorAcao(s) ? 1 : 0);
+  if (acordos.length > 120) acordos.shift();
+
+  const antes = j.dist(j.cobra[0], j.comida);
+  const res = j.passo(acao);
+  const depois = j.vivo ? j.dist(j.cobra[0], j.comida) : antes;
+
+  // ... e aqui a sua jogada vira aprendizado, exatamente com a mesma fórmula.
+  IA.aprender(s, acao, IA.recompensa(res, antes, depois), j.vivo ? IA.estado(j) : s, !j.vivo);
+  IA.licoes++;
+
+  if (res.comeu || res.comeuRara) {
+    const c = centroDaCabeca(j);
+    if (res.comeuRara) {
+      soltar(p, c.x, c.y, "#ffc247", 18, 120);
+      somRaro();
+      dizer("✨ Comida dourada: +3 pontos!", "ouro");
+    } else {
+      soltar(p, c.x, c.y, "#ff7a63", 10, 85);
+      somComer();
+      if (modo === "jogador" && j.raras && j.pontos % 4 === 0 && !j.comidaRara) j.gerarRara();
+    }
+    if (j.pontos > recordeHumano) { recordeHumano = j.pontos; salvarLogo(); }
+    const novoNivel = Math.floor(j.pontos / 5) + 1;
+    if (novoNivel > nivel && modo === "jogador") {
+      nivel = novoNivel;
+      somNivel();
+      soltar(p, LADO / 2, LADO / 2, "#5ef2a4", 20, 105);
+      dizer("🌟 Nível " + nivel + "! A cobra acelerou.", "ouro");
+    }
+  }
+
+  if (res.morreu) morreuHumano(p, res);
+}
+
+function passoDaIA(p, aprendendo) {
+  const j = p.jogo;
+  const s = IA.estado(j);
+  const a = IA.escolher(s, IA.epsilonJogo);
+  const antes = j.dist(j.cobra[0], j.comida);
+  const res = j.passo(a);
+  const depois = j.vivo ? j.dist(j.cobra[0], j.comida) : antes;
+  if (aprendendo) IA.aprender(s, a, IA.recompensa(res, antes, depois), j.vivo ? IA.estado(j) : s, !j.vivo);
+
+  if (res.comeu) {
+    const c = centroDaCabeca(j);
+    soltar(p, c.x, c.y, "#b388ff", 8, 80);
+    if (modo === "assistir") somComer();
+  }
+
+  if (res.morreu) {
+    const c = centroDaCabeca(j);
+    soltar(p, c.x, c.y, "#ff7a63", 20, 130);
+    IA.registrarPartida(j.pontos);
+    salvarLogo();
+    if (modo !== "treino") desenharGrafico();
+    if (modo === "duelo") {
+      terminarDuelo("ia");
+    } else {
+      p.espera = 1.1;
+      p.aviso = { titulo: "FIM DA PARTIDA", sub: motivoEmPalavras(j.motivo) + " · " + j.pontos + " pontos", cor: "#ddccff" };
+    }
+  }
+}
+
+function motivoEmPalavras(m) {
+  if (m === "parede") return "Bateu na parede";
+  if (m === "corpo") return "Bateu no próprio corpo";
+  if (m === "fome") return "Ficou rodando sem comer";
+  if (m === "vitoria") return "Encheu o tabuleiro";
+  return "Acabou";
+}
+
+function morreuHumano(p, res) {
+  somMorte();
+  const c = centroDaCabeca(p.jogo);
+  soltar(p, c.x, c.y, "#ff7a63", 26, 150);
+  if (p.jogo.pontos > recordeHumano) recordeHumano = p.jogo.pontos;
+  salvarLogo();
+  if (modo === "duelo") {
+    terminarDuelo("humano");
+  } else {
+    p.aviso = { titulo: "FIM DE JOGO", sub: motivoEmPalavras(p.jogo.motivo) + " · " + p.jogo.pontos + " pontos", cor: "#ff7a63" };
+    dizer("Fim de jogo com " + p.jogo.pontos + " pontos. Você deu " + IA.licoes + " lições para a IA até agora. Espaço para jogar de novo.", "erro");
+  }
+}
+
+function terminarDuelo(quemMorreu) {
+  fimDeDuelo = true;
+  const meus = painelA.jogo.pontos, dela = painelB.jogo.pontos;
+  const placar = "Você " + meus + " × " + dela + " IA";
+  if (quemMorreu === "ia") {
+    painelA.aviso = { titulo: "VOCÊ\nVENCEU!", sub: placar, cor: "#5ef2a4" };
+    painelB.aviso = { titulo: "PERDI", sub: motivoEmPalavras(painelB.jogo.motivo), cor: "#ff7a63" };
+    somVitoria();
+    dizer("A IA morreu primeiro: " + placar + ". Espaço para outra rodada.");
+  } else {
+    painelA.aviso = { titulo: "FIM DE JOGO", sub: motivoEmPalavras(painelA.jogo.motivo), cor: "#ff7a63" };
+    painelB.aviso = { titulo: "A IA\nVENCEU", sub: placar, cor: "#b388ff" };
+    dizer("Você morreu primeiro: " + placar + ". Espaço para outra rodada.", "erro");
+  }
+}
+
+/* =====================================================================
+   12. TREINO ACELERADO
+   ===================================================================== */
+
+function umEpisodio() {
+  const j = jogoTreino;
+  j.muros = opcoes.muros;
+  j.reiniciar();
+  let s = IA.estado(j);
+  while (j.vivo) {
+    const a = IA.escolher(s, IA.epsilon);
+    const antes = j.dist(j.cobra[0], j.comida);
+    const res = j.passo(a);
+    const depois = j.vivo ? j.dist(j.cobra[0], j.comida) : antes;
+    const s2 = j.vivo ? IA.estado(j) : s;
+    IA.aprender(s, a, IA.recompensa(res, antes, depois), s2, !j.vivo);
+    s = s2;
+  }
+  IA.registrarPartida(j.pontos);
+  IA.epsilon = Math.max(IA.epsilonMin, IA.epsilon * IA.decaimento);
+}
+
+function treinarUmQuadro() {
+  const orcamento = opcoes.turbo ? 22 : 9;   // milissegundos por quadro
+  const inicio = performance.now();
+  let n = 0;
+  do {
+    umEpisodio();
+    n++;
+  } while (performance.now() - inicio < orcamento && n < 600);
+  const gasto = (performance.now() - inicio) / 1000;
+  const taxa = gasto > 0 ? n / gasto : 0;
+  epsPorSegundo = epsPorSegundo ? epsPorSegundo * .85 + taxa * .15 : taxa;
+  salvarLogo();
+}
+
+/* =====================================================================
+   13. LOOP PRINCIPAL
+   ===================================================================== */
+
+function avancar(p, dt, intervalo) {
+  if (p.espera > 0) {
+    p.espera -= dt;
+    if (p.espera <= 0) {
+      p.aviso = null;
+      p.jogo.muros = opcoes.muros;
+      p.jogo.reiniciar();
+      p.acumulado = 0;
+    }
+    return;
+  }
+  if (!p.jogo || !p.jogo.vivo || p.esperando) return;
+
+  p.acumulado += dt * 1000;
+  if (p.acumulado > intervalo * 5) p.acumulado = intervalo;   // voltou de outra aba
+
+  let voltas = 0;
+  while (p.acumulado >= intervalo && p.jogo.vivo && voltas < 5) {
+    p.acumulado -= intervalo;
+    voltas++;
+    if (p.dono === "humano") passoDoHumano(p);
+    else passoDaIA(p, true);
+  }
+}
+
+let ultimoQuadro = 0;
+let ultimoHud = 0;
+let ultimoGrafico = 0;
+
+function quadro(agora) {
+  const dt = Math.min((agora - ultimoQuadro) / 1000, .1);
+  ultimoQuadro = agora;
+  tempo += dt;
+
+  if (!pausado) {
+    if (modo === "treino") {
+      treinarUmQuadro();
+    } else if (modo === "duelo") {
+      const intervalo = velocidadeJogo();
+      if (!fimDeDuelo) {
+        avancar(painelA, dt, intervalo);
+        avancar(painelB, dt, intervalo);
+      }
+    } else {
+      avancar(painelA, dt, velocidadeJogo());
+    }
+
+    // comida dourada tem tempo de vida
+    const j = painelA.jogo;
+    if (j && j.comidaRara) {
+      j.raraRestante -= dt;
+      if (j.raraRestante <= 0) j.comidaRara = null;
+    }
+  }
+
+  moverParticulas(painelA, dt);
+  if (modo === "duelo") moverParticulas(painelB, dt);
+
+  montarAvisos();
+  desenharPainel(painelA);
+  if (modo === "duelo") desenharPainel(painelB);
+
+  if (agora - ultimoHud > 110) { ultimoHud = agora; atualizarHUD(); }
+  if (agora - ultimoGrafico > 260 && modo === "treino") { ultimoGrafico = agora; desenharGrafico(); }
+
+  requestAnimationFrame(quadro);
+}
+
+function montarAvisos() {
+  if (modo === "treino") {
+    painelA.aviso = {
+      titulo: "TREINANDO",
+      sub: IA.episodios.toLocaleString("pt-BR") + " partidas · " + Math.round(epsPorSegundo) + " por segundo",
+      cor: "#b388ff"
+    };
+    return;
+  }
+  if (pausado) {
+    painelA.aviso = { titulo: "PAUSADO", sub: "P ou o botão para continuar", cor: "#ffc247" };
+    if (modo === "duelo") painelB.aviso = { titulo: "PAUSADO", sub: "", cor: "#ffc247" };
+    return;
+  }
+  if (painelA.esperando && painelA.jogo && painelA.jogo.vivo && !fimDeDuelo) {
+    painelA.aviso = { titulo: "PRONTO?", sub: "Seta, WASD ou deslize para começar", cor: "#b6ffd9" };
+    if (modo === "duelo") painelB.aviso = { titulo: "ESPERANDO", sub: "", cor: "#ddccff" };
+    return;
+  }
+  if (fimDeDuelo) return;                      // os avisos do duelo já estão postos
+  if (painelA.espera <= 0 && painelA.jogo && painelA.jogo.vivo) painelA.aviso = null;
+  if (modo === "duelo" && painelB.jogo && painelB.jogo.vivo) painelB.aviso = null;
+}
+
+/* =====================================================================
+   14. PAINEL E NÚMEROS
+   ===================================================================== */
+
+const NOMES_ACAO = ["seguir reto", "virar à direita", "virar à esquerda"];
+
+function jogoEmFoco() {
+  if (modo === "duelo") return painelB.jogo;
+  return painelA.jogo;
+}
+
+function atualizarHUD() {
+  const foco = jogoEmFoco();
+  const principal = painelA.jogo;
+
+  $("hudPontos").textContent = principal ? principal.pontos : 0;
+  $("hudRecorde").textContent = (modo === "assistir" || modo === "treino") ? IA.melhor : recordeHumano;
+  $("hudNivel").textContent = nivel;
+  $("hudPartidas").textContent = IA.episodios.toLocaleString("pt-BR");
+  if (modo === "duelo" && painelB.jogo) $("hudPontosIA").textContent = painelB.jogo.pontos;
+
+  $("statMedia").textContent = IA.media50().toFixed(1).replace(".", ",");
+  $("statMelhor").textContent = IA.melhor;
+  $("statExploracao").textContent = Math.round((modo === "treino" ? IA.epsilon : IA.epsilonJogo) * 100) + "%";
+  $("statEstados").textContent = Object.keys(IA.Q).length;
+  $("statLicoes").textContent = IA.licoes.toLocaleString("pt-BR");
+  $("statAcordo").textContent = acordos.length < 8 ? "—" :
+    Math.round(acordos.reduce(function (a, b) { return a + b; }, 0) / acordos.length * 100) + "%";
+
+  if (foco && foco.vivo) {
+    const s = IA.estado(foco);
+    ultimoEstadoVisto = s;
+    mostrarCerebro(s, foco);
+  } else if (ultimoEstadoVisto) {
+    mostrarCerebro(ultimoEstadoVisto, null);
+  }
+}
+
+function mostrarCerebro(s, jogo) {
+  const v = IA.valores(s);
+  const melhorIdx = IA.melhorAcao(s);
+  const menor = Math.min(0, v[0], v[1], v[2]);
+  const maior = Math.max(.001, v[0], v[1], v[2]);
+  for (let i = 0; i < 3; i++) {
+    const largura = ((v[i] - menor) / (maior - menor)) * 100;
+    $("barra" + i).style.width = Math.max(2, largura).toFixed(1) + "%";
+    $("val" + i).textContent = v[i].toFixed(2).replace(".", ",");
+    $("nota" + i).classList.toggle("melhor", i === melhorIdx);
+  }
+
+  const inedito = (v[0] === 0 && v[1] === 0 && v[2] === 0);
+  $("decisao").innerHTML = inedito
+    ? "Situação nova: ela ainda não tem opinião e vai <b>chutar</b>."
+    : "A IA decidiria: <b>" + NOMES_ACAO[melhorIdx] + "</b>.";
+
+  for (let i = 0; i < 3; i++) $("bitP" + i).classList.toggle("aceso", s[i] === "1");
+  for (let i = 0; i < 3; i++) $("bitP" + i).classList.add("perigo");
+  for (let i = 0; i < 4; i++) {
+    const el = $("bitD" + i);
+    el.classList.toggle("aceso", s[3 + i] === "1");
+    el.classList.add("rumo");
+  }
+  for (let i = 0; i < 4; i++) $("bitC" + i).classList.toggle("aceso", s[7 + i] === "1");
+}
+
+/* =====================================================================
+   15. GRÁFICO DA CURVA
+   ===================================================================== */
+
+let gW = 600, gH = 200;
+
+function ajustarGrafico() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const r = grafico.getBoundingClientRect();
+  gW = Math.max(280, Math.round(r.width));
+  gH = 200;
+  grafico.width = Math.round(gW * dpr);
+  grafico.height = Math.round(gH * dpr);
+  gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  desenharGrafico();
+}
+
+function desenharGrafico() {
+  const c = gctx;
+  c.clearRect(0, 0, gW, gH);
+
+  const ml = 34, mr = 10, mt = 12, mb = 22;
+  const larg = gW - ml - mr, alt = gH - mt - mb;
+  const h = IA.hist;
+
+  c.strokeStyle = "rgba(126,219,188,.14)";
+  c.lineWidth = 1;
+  c.beginPath(); c.moveTo(ml, mt); c.lineTo(ml, mt + alt); c.lineTo(ml + larg, mt + alt); c.stroke();
+
+  $("rotuloEscala").textContent = IA.escala === 1 ? "1 ponto = 1 partida" : "1 ponto = " + IA.escala + " partidas";
+
+  if (h.length < 2) {
+    c.fillStyle = "#5f7b76";
+    c.font = "400 12px 'Rubik', sans-serif";
+    c.textAlign = "center";
+    c.fillText("Clique em “Treinar a IA” — a curva aparece aqui em segundos.", gW / 2, gH / 2);
+    return;
+  }
+
+  let pico = 10;
+  for (let i = 0; i < h.length; i++) if (h[i] > pico) pico = h[i];
+  const topo = Math.ceil(pico / 10) * 10;
+  const px = function (i) { return ml + (i / (h.length - 1)) * larg; };
+  const py = function (v) { return mt + alt - (v / topo) * alt; };
+
+  // linhas guia
+  c.font = "400 10px 'JetBrains Mono', monospace";
+  c.fillStyle = "#5f7b76";
+  c.textAlign = "right";
+  for (const v of [0, topo / 2, topo]) {
+    const y = py(v);
+    c.strokeStyle = "rgba(126,219,188,.09)";
+    c.beginPath(); c.moveTo(ml, y); c.lineTo(ml + larg, y); c.stroke();
+    c.fillText(String(Math.round(v)), ml - 6, y + 3);
+  }
+
+  // cada partida
+  c.fillStyle = "rgba(94,242,164,.45)";
+  for (let i = 0; i < h.length; i++) {
+    c.fillRect(px(i) - 1, py(h[i]) - 1, 2, 2);
+  }
+
+  // média móvel
+  const janela = Math.max(4, Math.round(h.length / 30));
+  c.strokeStyle = "#b388ff";
+  c.lineWidth = 2;
+  c.lineJoin = "round";
+  c.beginPath();
+  let soma = 0;
+  const fila = [];
+  for (let i = 0; i < h.length; i++) {
+    fila.push(h[i]); soma += h[i];
+    if (fila.length > janela) soma -= fila.shift();
+    const m = soma / fila.length;
+    if (i === 0) c.moveTo(px(i), py(m)); else c.lineTo(px(i), py(m));
+  }
+  c.stroke();
+
+  // ponta da linha
+  const ultimaMedia = soma / fila.length;
+  c.fillStyle = "#ddccff";
+  c.beginPath(); c.arc(px(h.length - 1), py(ultimaMedia), 3.2, 0, Math.PI * 2); c.fill();
+
+  c.textAlign = "left";
+  c.fillStyle = "#5f7b76";
+  c.font = "400 10px 'JetBrains Mono', monospace";
+  c.fillText("partida 1", ml, gH - 7);
+  c.textAlign = "right";
+  c.fillText("partida " + (h.length * IA.escala).toLocaleString("pt-BR"), ml + larg, gH - 7);
+}
+
+/* =====================================================================
+   16. CONTROLES
+   ===================================================================== */
+
+function comecarSeEstiverEsperando() {
+  if (painelA.esperando) {
+    painelA.esperando = false;
+    painelB.esperando = false;
+    painelA.aviso = painelB.aviso = null;
+    if (modo === "jogador") dizer("Boa sorte! A IA está assistindo cada movimento seu.");
+    if (modo === "duelo") dizer("Valendo! Quem morrer primeiro perde.", "ouro");
+  }
+}
+
+function pedirDirecao(d) {
+  if (modo !== "jogador" && modo !== "duelo") return;
+  if (pausado || fimDeDuelo) return;
+  if (!painelA.jogo || !painelA.jogo.vivo) return;
+  comecarSeEstiverEsperando();
+  desejo = d;
+}
+
+function reiniciarPartida() {
+  somClique();
+  if (modo === "treino") { trocarModo("treino"); return; }
+  fimDeDuelo = false;
+  nivel = 1;
+  desejo = null;
+  painelA.particulas = []; painelB.particulas = [];
+  painelA.aviso = painelB.aviso = null;
+  painelA.espera = painelB.espera = 0;
+  painelA.acumulado = painelB.acumulado = 0;
+  if (painelA.jogo) { painelA.jogo.muros = opcoes.muros; painelA.jogo.reiniciar(); }
+  if (painelB.jogo) { painelB.jogo.muros = opcoes.muros; painelB.jogo.reiniciar(); }
+  if (modo === "jogador" || modo === "duelo") {
+    painelA.esperando = true;
+    painelB.esperando = true;
+    dizer("Nova partida. Faça um movimento para começar.");
+  } else {
+    dizer("Nova partida da IA.", "roxo");
+  }
+}
+
+function alternarPausa() {
+  pausado = !pausado;
+  atualizarBotaoPausa();
+  if (pausado) dizer("Pausado.", "ouro");
+  else if (modo === "treino") dizer("Treinando de novo.", "roxo");
+  else dizer("Continuando.");
+}
+
+function atualizarBotaoPausa() {
+  $("btnPausa").textContent = pausado
+    ? (modo === "treino" ? "▶️ Retomar treino" : "▶️ Continuar")
+    : (modo === "treino" ? "⏸ Parar treino" : "⏸ Pausar");
+}
+
+document.addEventListener("keydown", function (e) {
+  const t = e.key.toLowerCase();
+  if (t === "p") { somClique(); alternarPausa(); return; }
+  if (t === " " || t === "spacebar" || e.code === "Space") {
+    e.preventDefault();
+    if (painelA.esperando) comecarSeEstiverEsperando();
+    else reiniciarPartida();
+    return;
+  }
+  let d = null;
+  if (t === "w" || t === "arrowup") d = 3;
+  if (t === "s" || t === "arrowdown") d = 1;
+  if (t === "a" || t === "arrowleft") d = 2;
+  if (t === "d" || t === "arrowright") d = 0;
+  if (d !== null) {
+    e.preventDefault();
+    pedirDirecao(d);
+  }
+});
+
+let toque = null;
+telaA.addEventListener("touchstart", function (e) {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  toque = { x: t.clientX, y: t.clientY };
+}, { passive: false });
+
+telaA.addEventListener("touchmove", function (e) { e.preventDefault(); }, { passive: false });
+
+telaA.addEventListener("touchend", function (e) {
+  e.preventDefault();
+  if (!toque) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - toque.x, dy = t.clientY - toque.y;
+  toque = null;
+  if (Math.abs(dx) < 22 && Math.abs(dy) < 22) { comecarSeEstiverEsperando(); return; }
+  if (Math.abs(dx) > Math.abs(dy)) pedirDirecao(dx > 0 ? 0 : 2);
+  else pedirDirecao(dy > 0 ? 1 : 3);
+}, { passive: false });
+
+$("dpad").addEventListener("click", function (e) {
+  const b = e.target.closest("button[data-dir]");
+  if (!b) return;
+  pedirDirecao(Number(b.dataset.dir));
+});
+
+$("modos").addEventListener("click", function (e) {
+  const b = e.target.closest(".modo");
+  if (!b) return;
+  somClique();
+  trocarModo(b.dataset.modo);
+});
+
+$("btnPausa").addEventListener("click", function () { somClique(); alternarPausa(); });
+$("btnReiniciar").addEventListener("click", reiniciarPartida);
+
+$("btnMuros").addEventListener("click", function () {
+  opcoes.muros = !opcoes.muros;
+  const b = $("btnMuros");
+  b.setAttribute("aria-pressed", opcoes.muros ? "true" : "false");
+  b.textContent = opcoes.muros ? "SIM" : "NÃO";
+  if (painelA.jogo) painelA.jogo.muros = opcoes.muros;
+  if (painelB.jogo) painelB.jogo.muros = opcoes.muros;
+  if (jogoTreino) jogoTreino.muros = opcoes.muros;
+  somClique();
+  dizer(opcoes.muros
+    ? "Paredes matam de novo. A IA precisa reaprender a se desviar das bordas."
+    : "Paredes desligadas: a cobra atravessa e aparece do outro lado.", "ouro");
+  salvarLogo();
+});
+
+$("btnSom").addEventListener("click", function () {
+  opcoes.som = !opcoes.som;
+  const b = $("btnSom");
+  b.setAttribute("aria-pressed", opcoes.som ? "true" : "false");
+  b.textContent = opcoes.som ? "LIGADO" : "MUDO";
+  if (opcoes.som) somClique();
+  salvarLogo();
+});
+
+$("btnTurbo").addEventListener("click", function () {
+  opcoes.turbo = !opcoes.turbo;
+  const b = $("btnTurbo");
+  b.setAttribute("aria-pressed", opcoes.turbo ? "true" : "false");
+  b.textContent = opcoes.turbo ? "SIM" : "NÃO";
+  somClique();
+  salvarLogo();
+});
+
+$("ctlVelocidade").addEventListener("input", function (e) {
+  opcoes.velocidade = 275 - Number(e.target.value);   // arrastar para a direita = mais rápido
+  salvarLogo();
+});
+
+$("ctlAlfa").addEventListener("input", function (e) {
+  IA.alfa = Number(e.target.value) / 100;
+  salvarLogo();
+});
+
+$("ctlGama").addEventListener("input", function (e) {
+  IA.gama = Number(e.target.value) / 100;
+  salvarLogo();
+});
+
+$("btnZerar").addEventListener("click", function () {
+  if (!window.confirm("Apagar tudo o que a IA aprendeu e começar do zero?")) return;
+  IA.zerar();
+  acordos = [];
+  epsPorSegundo = 0;
+  salvar();
+  somClique();
+  trocarModo(modo === "treino" ? "treino" : modo);
+  dizer("Cérebro apagado. Ela está burra de novo — clique em “Treinar a IA” e acompanhe a curva.", "ouro");
+  desenharGrafico();
+});
+
+$("btnCopiar").addEventListener("click", function () {
+  const texto = JSON.stringify(IA.exportar());
+  $("caixaCerebro").value = texto;
+  $("caixaCerebro").select();
+  try {
+    if (navigator.clipboard) navigator.clipboard.writeText(texto);
+    else document.execCommand("copy");
+    dizer("Cérebro copiado. Cole esse texto no outro computador.", "roxo");
+  } catch (err) {
+    dizer("Não consegui copiar sozinho — o texto está aí na caixa, copie com Ctrl+C.", "ouro");
+  }
+});
+
+$("btnCarregar").addEventListener("click", function () {
+  const texto = $("caixaCerebro").value.trim();
+  if (!texto) { dizer("Cole o texto de um cérebro na caixa primeiro.", "ouro"); return; }
+  try {
+    if (IA.importar(JSON.parse(texto))) {
+      salvar();
+      acordos = [];
+      desenharGrafico();
+      atualizarHUD();
+      dizer("Cérebro carregado: " + Object.keys(IA.Q).length + " situações e " + IA.episodios + " partidas.", "roxo");
+    } else {
+      dizer("Esse texto não parece um cérebro válido.", "erro");
+    }
+  } catch (err) {
+    dizer("Esse texto não parece um cérebro válido.", "erro");
+  }
+});
+
+window.addEventListener("resize", function () {
+  clearTimeout(window.__t);
+  window.__t = setTimeout(ajustarGrafico, 150);
+});
+
+window.addEventListener("beforeunload", salvar);
+document.addEventListener("visibilitychange", function () { if (document.hidden) salvar(); });
+
+/* =====================================================================
+   17. PARTIDA
+   ===================================================================== */
+
+const origem = carregar();
+
+$("btnMuros").setAttribute("aria-pressed", opcoes.muros ? "true" : "false");
+$("btnMuros").textContent = opcoes.muros ? "SIM" : "NÃO";
+$("btnSom").setAttribute("aria-pressed", opcoes.som ? "true" : "false");
+$("btnSom").textContent = opcoes.som ? "LIGADO" : "MUDO";
+$("btnTurbo").setAttribute("aria-pressed", opcoes.turbo ? "true" : "false");
+$("btnTurbo").textContent = opcoes.turbo ? "SIM" : "NÃO";
+$("ctlVelocidade").value = String(275 - opcoes.velocidade);
+$("ctlAlfa").value = String(Math.round(IA.alfa * 100));
+$("ctlGama").value = String(Math.round(IA.gama * 100));
+$("rodape").textContent = origem === "salvo"
+  ? "cérebro recuperado deste navegador"
+  : "cérebro pré-treinado: " + IA.episodios.toLocaleString("pt-BR") + " partidas";
+
+jogoTreino = new Jogo({ muros: opcoes.muros, fome: true });
+trocarModo("assistir");
+ajustarGrafico();
+atualizarHUD();
+requestAnimationFrame(function (t) { ultimoQuadro = t; requestAnimationFrame(quadro); });
+</script>
+<!-- FIM-ARTEFATO -->
+</body>
+</html>
